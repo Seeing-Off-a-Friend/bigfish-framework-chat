@@ -1,0 +1,15 @@
+# 行尾统一：仓库内一律 LF。不写这条时 Windows 上 autocrlf=true 会让
+# 每个协作者检出成 CRLF，一旦提交就把整个文件算成改动，diff 全是噪音。
+* text=auto eol=lf
+
+# Windows 批处理必须保持 CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# 二进制，别做换行转换
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff binary
+*.woff2 binary

@@ -1,0 +1,40 @@
+{
+  "name": "bigfish-framework-chat",
+  "version": "0.1.0",
+  "description": "一个便宜、记得住、会主动开口的陪伴式对话引擎（分层记忆 + 遗忘曲线检索 + 主动开口调度）",
+  "main": "src/index.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "demo": "node demo/cli.js",
+    "test": "node test/run.js"
+  },
+  "keywords": [
+    "llm",
+    "chatbot",
+    "companion",
+    "memory",
+    "prompt-engineering",
+    "deepseek"
+  ],
+  "license": "SEE LICENSE IN LICENSE",
+  "author": "Seeing-Off-a-Friend",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Seeing-Off-a-Friend/bigfish-framework-chat.git"
+  },
+  "homepage": "https://github.com/Seeing-Off-a-Friend/bigfish-framework-chat#readme",
+  "bugs": {
+    "url": "https://github.com/Seeing-Off-a-Friend/bigfish-framework-chat/issues"
+  },
+  "files": [
+    "src",
+    "docs",
+    "demo",
+    "config.example.jsonc",
+    "README.md",
+    "LICENSE"
+  ]
+}

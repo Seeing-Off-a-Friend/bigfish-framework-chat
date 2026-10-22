@@ -1,0 +1,50 @@
+// ============================================================================
+// bigfish-framework-chat 配置模板（JSONC：允许 // 注释）
+//
+// 用法：复制成 config.jsonc，改 apiKey，然后 node demo/cli.js
+// 也可以不建文件，直接设环境变量 DEEPSEEK_API_KEY。
+// 所有字段都可以不填 —— 不填就是下面注释里写的默认值。
+// ============================================================================
+{
+  // ---- 接口 ----
+  "apiBase": "https://api.deepseek.com", // OpenAI 兼容地址都行（中转也行）
+  "model": "deepseek-flash",
+  "apiKey": "",                          // 留空则读环境变量 DEEPSEEK_API_KEY
+
+  // ---- 人设 ----
+  // 留空 = 用内置人设（src/persona.js 里的「鲸鱼娘」，可直接整段换掉）。
+  // 想换成自己的角色：填一整段文字，填了就不会混进内置人设。
+  "persona": "",
+
+  // ---- 采样 ----
+  "maxTokens": 400,        // 一次最多 3 条短消息，400 够用
+  "temperature": 1.2,      // 越高越活泼，越低越"老实"；1.0 以下重复感会变强
+  "presencePenalty": 0.25, // 重复用词惩罚，压口头禅堆积。0 = 关
+
+  // ---- 上下文 ----
+  // 只带最近 N 轮原文，更早的压成一行提要。
+  // 这是最有效的省钱旋钮：2 轮和 6 轮成本差近一倍，观感差别很小。
+  "historyTurns": 2,
+  "timeoutMs": 30000,
+
+  // 思考档位：'off' 不思考 / 'low' 少量思考（默认）/ 'on' 正常思考
+  // 顺带一提：关掉思考不只为省钱，它还减少"我要不要提醒他一下"这类多余的自我审查。
+  "thinking": "low",
+
+  // ---- 记忆 ----
+  "memory": true,
+  "memoryIdleMinutes": 10,  // 静默多久后把对话整理成日记
+  "memoryInjectDays": 3,    // 注入最近几天
+  "memoryMaxChars": 1000,   // 记忆注入的字数上限（约 500~600 token）
+  "memoryRetentionDays": 60, // 检索窗口：只在最近这么多天的日记里翻旧事（想记得更久就调大）
+  "memoryWeeklyKeep": 4,     // 周摘要保留几份（每份约两周）
+  "memoryMonthlyKeep": 12,   // 月摘要保留几份（每份一个月，用来撑一年以上的跨度）
+
+  // ---- 主动开口 ----
+  "initiative": true,
+  "initiativeSpeakPerDay": 6,     // 每天最多主动开口几次
+  "initiativeGapMin": 90,         // 两次之间至少隔多久（分钟）
+  "initiativeGapMax": 180,        // 实际间隔在 min~max 之间随机
+  "initiativeQuietStart": 0,      // 静默时段起（0 = 零点）
+  "initiativeQuietEnd": 6         // 静默时段止（6 = 早上六点）。起止相同 = 不设静默
+}

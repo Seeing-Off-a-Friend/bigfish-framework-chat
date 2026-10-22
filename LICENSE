@@ -1,0 +1,132 @@
+BigFish Framework Chat License v1.0
+（bigfish-framework-chat 使用许可协议 v1.0）
+
+Copyright (c) 2026 Seeing-Off-a-Friend
+Original source（原始地址）:
+https://github.com/Seeing-Off-a-Friend/bigfish-framework-chat
+
+本协议中英双语并列，两种文本同等有效；如中文与英文在理解上出现分歧，以中文文本为准。
+This license is provided in both Chinese and English. Both texts are equally
+authoritative; where the Chinese and English texts differ in interpretation, the
+Chinese text prevails.
+
+================================================================================
+一、授权（Grant）
+================================================================================
+
+在完全遵守本协议全部条款的前提下，版权持有人免费授予你一项全球范围、非独占、
+不可再许可的许可，允许你：
+
+  (a) 使用、复制、运行本软件及其衍生作品；
+  (b) 修改本软件并创作衍生作品；
+  (c) 以源码或编译产物的形式分发本软件及其衍生作品；
+
+但以上授权仅限于**非商业目的**（见第三条）。
+
+Subject to full compliance with all terms of this license, the copyright holder
+grants you a free, worldwide, non-exclusive, non-sublicensable license to use,
+copy, run, modify, and distribute this software and its derivative works, for
+non-commercial purposes only (see Section 3).
+
+================================================================================
+二、署名与原始地址（Attribution and Original Source）
+================================================================================
+
+任何对本软件的介绍、展示、分发行为，均须满足以下全部要求。此类行为包括但不限于：
+分发源码、分发编译产物、发布衍生作品、撰写文档或教程、演示、截图、录屏、视频、
+文章、播客、课程、会议分享、产品说明页、镜像站点、二次打包发行。
+
+  (a) 明确标注本项目名称 "bigfish-framework-chat"；
+  (b) 附带原始地址，且该地址必须完整、可见、可点击、非隐藏、非注释化、非截断：
+      https://github.com/Seeing-Off-a-Friend/bigfish-framework-chat
+  (c) 保留本文件中的版权声明与本许可声明，不得删除、改写或替换。
+
+任何介绍、展示、分发时请附上上述原始地址。
+
+Any introduction, demonstration, or distribution of this software must satisfy
+all of the following: clearly identify the project as "bigfish-framework-chat";
+include the complete, visible, clickable, non-hidden, non-truncated original
+source URL https://github.com/Seeing-Off-a-Friend/bigfish-framework-chat; and
+retain this copyright and license notice without deletion, modification, or
+replacement.
+
+================================================================================
+三、禁止商业使用（Non-Commercial Use Only）
+================================================================================
+
+不得将本软件或其任何衍生作品用于任何商业目的。商业目的包括但不限于：
+
+  (a) 出售、出租、转售、再许可本软件或其衍生作品；
+  (b) 作为付费产品、付费服务、订阅服务、SaaS、API 服务、托管服务的一部分提供，
+      无论是否单独收费；
+  (c) 集成进以营利为目的的产品、应用、硬件、系统或内部商业运营流程；
+  (d) 通过广告变现、流量分成、付费墙、众筹回报等方式直接或间接获利；
+  (e) 用于向客户交付的付费项目、外包项目或商业咨询项目。
+
+任何商业使用，均须事先取得版权持有人的明确书面许可。
+
+You may not use this software or any derivative work for any commercial
+purpose, including but not limited to sale, resale, sublicensing, inclusion in
+any paid product or service, subscription, SaaS, API service, hosted service,
+any for-profit product or internal commercial operation, monetization through
+advertising or revenue sharing, or delivery within paid client or consulting
+work. Any commercial use requires prior written permission from the copyright
+holder.
+
+================================================================================
+四、衍生作品（Derivative Works）
+================================================================================
+
+分发本软件的衍生作品时，必须整体沿用本协议，不得改为其他许可证，也不得附加
+额外限制。衍生作品同样受第三条（禁止商业使用）与第二条（署名与原始地址）约束。
+
+Derivative works must be distributed under this same license, without
+replacement by another license and without additional restrictions, and remain
+bound by Section 2 and Section 3.
+
+================================================================================
+五、终止（Termination）
+================================================================================
+
+违反本协议任何条款，本协议授予的全部权利立即自动终止，无需另行通知。终止后，
+你须立即停止使用本软件，并删除、销毁你持有或控制的所有副本及衍生作品。
+
+权利可恢复，但须取得版权持有人的明确书面同意。
+
+Any violation of this license automatically and immediately terminates all
+rights granted hereunder without notice. Upon termination you must stop using
+the software and delete or destroy all copies and derivative works in your
+possession or control. Rights may be reinstated only with the express written
+consent of the copyright holder.
+
+================================================================================
+六、免责声明（Disclaimer of Warranty and Liability）
+================================================================================
+
+本软件按"原样"提供，不附带任何明示或默示的担保，包括但不限于对适销性、
+特定用途适用性、所有权及不侵权的担保。本软件可能存在缺陷，其质量与性能风险
+全部由你承担。
+
+在任何情况下，版权持有人均不对因本软件或本软件的使用或其他交易所产生的任何
+索赔、损害、损失或其他责任承担责任，无论是合同之诉、侵权之诉还是其他，也无论
+是否已被告知发生此类损害的可能性。
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, TITLE AND NON-INFRINGEMENT. IN NO EVENT
+SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+================================================================================
+七、商业授权与联系方式（Commercial Licensing）
+================================================================================
+
+如需商业使用、或需就本协议取得例外授权，请通过原始地址的 Issues 联系版权持有人：
+https://github.com/Seeing-Off-a-Friend/bigfish-framework-chat/issues
+
+For commercial licensing or any exception to this license, contact the
+copyright holder via the Issues page at the original source URL above.
+
+================================================================================

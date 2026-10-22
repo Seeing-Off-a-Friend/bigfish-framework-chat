@@ -1,0 +1,20 @@
+# 依赖
+node_modules/
+
+# 个人数据：这个目录里是聊天记录、日记、用量账本，永远不要提交
+memory/
+memory*/
+data/
+
+# 本地配置（里面有 key）
+config.jsonc
+.env
+.env.*
+*.local
+
+# 系统与编辑器
+.DS_Store
+Thumbs.db
+*.log
+.idea/
+.vscode/
