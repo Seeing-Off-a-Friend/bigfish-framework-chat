@@ -42,12 +42,13 @@ const DEFAULTS = {
   memoryIdleMinutes: 10,
   // 注入最近几天的日记（默认 3）
   memoryInjectDays: 3,
-  // 注入的记忆最多占多少字（默认 1000，约 500~600 token）
-  memoryMaxChars: 1000,
-  // 检索窗口：只在最近这么多天的日记里翻旧事（默认 60）。想记得更久就调大
-  memoryRetentionDays: 60,
-  // 周摘要保留几份（每份约两周，默认 4）
-  memoryWeeklyKeep: 4,
+  // 注入的记忆最多占多少字（默认 1400，约 700~800 token）
+  // 其中约 25% 是留给周/月摘要的保底额度，近期日记挤不掉它
+  memoryMaxChars: 1400,
+  // 检索窗口：只在最近这么多天的日记里翻旧事（默认 365，按日期算不按文件个数算）
+  memoryRetentionDays: 365,
+  // 周摘要保留几份（每份约两周，默认 26 ≈ 一年）
+  memoryWeeklyKeep: 26,
   // 月摘要保留几份（每份一个月，默认 12）—— 比周摘要更粗，用来撑住一年以上的跨度
   memoryMonthlyKeep: 12,
 

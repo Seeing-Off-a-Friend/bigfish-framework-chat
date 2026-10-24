@@ -246,13 +246,13 @@ function createMemory(opts) {
   const complete = opts.complete; // async (messages) => { ok, reply }
   const idleMs = Math.max(1000, Number(opts.idleMs) || 10 * 60 * 1000);
   const injectDays = Math.max(1, Number(opts.injectDays) || 3);
-  const maxChars = Math.max(200, Number(opts.maxChars) || 1000);
+  const maxChars = Math.max(200, Number(opts.maxChars) || 1400);
   // 检索窗口：只在这些天以内的日记里翻旧事。以前写死 60。
-  // 每天聊得多、想让它记得更久，把它调大（180/365）就行，代价是每次检索多读几个文件。
-  const retentionDays = Math.max(3, Number(opts.retentionDays) || 60);
-  // 周摘要保留几份（每份约两周）。以前写死 4，和上面的 60 天窗口几乎重合，
-  // 等于"梗概并没有比细节活得更久" —— 想拉长就把它调大。
-  const weeklyKeep = Math.max(1, Number(opts.weeklyKeep) || 4);
+  // 每天聊得多、想让它记得更久，把它调大（默认一年，按日期算不按文件个数算）。
+  const retentionDays = Math.max(3, Number(opts.retentionDays) || 365);
+  // 周摘要保留几份（每份约两周）。以前写死 4，和 60 天窗口几乎重合，
+  // 等于"梗概并没有比细节活得更久" —— 26 份约等于一年。
+  const weeklyKeep = Math.max(1, Number(opts.weeklyKeep) || 26);
   // 月摘要保留几份。周摘要只压到两个月左右，再往前就靠这一层撑着。
   const monthlyKeep = Math.max(1, Number(opts.monthlyKeep) || 12);
   const log = opts.log || (() => {});
@@ -497,7 +497,15 @@ function createMemory(opts) {
       );
     }
     for (const e of fresh.filter((x) => x.kind === 'thought' || x.kind === 'gift').slice(-1)) {
-      push('· ' + hm(e.t) + (e.kind === 'thought' ? ' 你写过一段随笔，没跟他提过' : ' 你留了个小东西，他没说什么'));
+      const what = e.kind === 'gift' ? clip(String(e.text || ''), 16) : '';
+      push(
+        '· ' + hm(e.t) +
+          (e.kind === 'thought'
+            ? ' 你写过一段随笔，没跟他提过'
+            : what
+              ? ' 你留了个小东西「' + what + '」，他没说什么'
+              : ' 你留了个小东西，他没说什么'),
+      );
     }
     // 最近没有原话，就只给昨天（48 小时内）的统计：知道个大概，不搬原话
     if (!rows.length) {
@@ -532,7 +540,10 @@ function createMemory(opts) {
         if (e.t.getTime() > now) continue;
         const label =
           e.kind === 'speak' ? '主动搭话' : e.kind === 'note' ? '留了条留言' : e.kind === 'thought' ? '写了段随笔' : '留了个小东西';
-        const body = e.kind === 'gift' ? path.basename(e.file || '') || '（附件文件）' : clip(e.text, 40);
+        // 附件/礼物：能记下"做的是什么"就别用文件名（文件名只有日期，没信息量）
+        const body = e.kind === 'gift'
+          ? clip(String(e.text || ''), 30) || path.basename(e.file || '') || '（附件文件）'
+          : clip(e.text, 40);
         rows.push({ e, line: '- ' + hm(e.t) + ' 它' + label + '：' + body + (e.heard ? '（用户接了）' : '（用户没接）') });
       }
     }
@@ -1085,11 +1096,15 @@ function createMemory(opts) {
       return date < ymd(cutoff) && !digested[date];
     });
     if (!due.length) return;
+    // 一次最多消化 14 天（省钱），但"标记已整理"只能标这 14 天。
+    // 以前结尾是 for (const f of due) —— 停跑一个月再回来时 due 有 30 天，
+    // 只给前 14 天做了摘要，剩下 16 天却被一起标成 done，从此永远是空白。
+    const batch = due.slice(0, 14);
     weeklyBusy = true;
     (async () => {
       try {
         const picked = [];
-        for (const f of due.slice(0, 14)) {
+        for (const f of batch) {
           let txt = '';
           try {
             txt = fs.readFileSync(path.join(diaryDir, f), 'utf8');
@@ -1104,8 +1119,8 @@ function createMemory(opts) {
           }
         }
         if (!picked.length) {
-          // 这几天全是闲聊：直接标记，不再花钱
-          for (const f of due) digested[f.slice(0, 10)] = 'skip';
+          // 这 14 天全是闲聊：直接标记，不再花钱（只标这批，剩下的下次再看）
+          for (const f of batch) digested[f.slice(0, 10)] = 'skip';
           writeDigested(digested);
           return;
         }
@@ -1123,17 +1138,19 @@ function createMemory(opts) {
           .filter((s) => s.length >= 2)
           .slice(0, 5);
         if (items.length) {
-          const first = due[0].slice(0, 10);
-          const last = due[due.length - 1].slice(0, 10);
+          const first = batch[0].slice(0, 10);
+          const last = batch[batch.length - 1].slice(0, 10);
           const p = path.join(weeklyDir, isoWeek(new Date(first + 'T12:00:00')) + '.md');
           let body = fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : '# ' + isoWeek(new Date(first + 'T12:00:00')) + '\n\n';
           if (!body.endsWith('\n')) body += '\n';
-          const range = first.slice(5) + '–' + last.slice(5) + '：' + items.join('；');
-          fs.writeFileSync(p, body + '- ' + range + '\n', 'utf8');
+          // 一句一条，日期只标在句前：一整串「A；B；C；D」读起来是一大坨，
+          // 模型也分不清哪句是重点，注入时更没法单独挑。
+          const range = first.slice(5) + '–' + last.slice(5);
+          fs.writeFileSync(p, body + items.map((t) => '- ' + range + ' ' + t).join('\n') + '\n', 'utf8');
           contextCache = null;
           log('周摘要已生成（' + first + ' ~ ' + last + '，' + items.length + ' 条）');
         }
-        for (const f of due) digested[f.slice(0, 10)] = 'done';
+        for (const f of batch) digested[f.slice(0, 10)] = 'done';
         writeDigested(digested);
       } catch (e) {
         log('周摘要异常：' + (e && e.message));
@@ -1541,6 +1558,22 @@ function createMemory(opts) {
       return true;
     };
 
+    // 给"更早"留的保底预算，必须在排近期日记之前就算出来。
+    // 以前所有段落共用一个 1000 字上限、先到先得，而周摘要排在今天/昨天/前天后面：
+    // 光这几段的上限加起来就是 220+60+380+200+200=1060 > 1000，
+    // 于是只要这几天日记写得满，周摘要那份永远抢不到 —— 整段不注入，
+    // 看起来就像它彻底忘了三个月前的事。现在近期日记只能在 recentCap 以内花，
+    // 剩下的（≥ oldReserve）一定留给周/月摘要。
+    const oldReserve = Math.max(360, Math.min(520, Math.round(cap * 0.25)));
+    const recentCap = Math.max(320, cap - oldReserve);
+    const pushRecent = (s) => {
+      const limit = Math.min(cap, recentCap);
+      if (used + s.length > limit) return false;
+      out.push(s);
+      used += s.length;
+      return true;
+    };
+
     // 1) 永久钉住
     // 从最新的往回取：pinned.md 是追加写的，新条目永远在文件末尾。
     // 正序累加到 220 字就 break 的话，文件一早超预算，之后新钉住的约定一条都进不来
@@ -1570,10 +1603,17 @@ function createMemory(opts) {
       const txt = readDiaryText(ymd(d));
       if (!txt) continue;
       const label = i === 0 ? '今天' : i === 1 ? '昨天' : i === 2 ? '前天' : d.getMonth() + 1 + '月' + d.getDate() + '日';
-      const dayCap = i === 0 ? 380 : 200;
+      const dayCap = i === 0 ? 400 : 260;
       // 条数上限：给了太多素材，模型会反复拿同一条当话头接话
       // （实测今天 8 条记忆时，"中午吃了蛋炒饭"在十句闲聊里被提了 4 次）
-      const dayLimit = i === 0 ? 5 : 3;
+      // 但 5/3 是照着"一天 2~6 条"定的；实际一天攒到二三十条时，九成内容当天就看不见。
+      const dayLimit = i === 0 ? 8 : i === 1 ? 5 : 4;
+      // 重点最多占 dayLimit-2 个名额（今天 6、昨天 3、前天 2）。
+      // 纯按重要度排，名额会被"约定"全吃满，记忆里长期只剩那几条，说话也就只剩那几句可念；
+      // 但也不能反过来压太多 —— 重点本来就是最该记住的，所以只留 2 个位置给日常。
+      const starLimit = Math.max(3, dayLimit - 2);
+      // 简记（寒暄、玩笑、一句感慨）进来只是凑数，最多 2 条
+      const briefLimit = 2;
       // 先把当天所有能注入的解析出来
       const parsed = [];
       for (const line of txt.split(/\r?\n/)) {
@@ -1596,48 +1636,60 @@ function createMemory(opts) {
         .map((x) => x.p);
       const picked = [];
       let n = 0;
-      for (const p of ordered) {
-        if (picked.length >= dayLimit) break;
+      let stars = 0;
+      let briefs = 0;
+      const tryPick = (p) => {
+        if (picked.length >= dayLimit) return;
+        if (p.kind === '重点' && stars >= starLimit) return;
+        if (p.kind === '简记' && briefs >= briefLimit) return;
         const s = '· ' + label + ' ' + p.time + ' ' + p.text;
-        if (n + s.length > dayCap) break;
+        if (n + s.length > dayCap) return;
         picked.push({ p, s });
         n += s.length;
-      }
+        if (p.kind === '重点') stars += 1;
+        if (p.kind === '简记') briefs += 1;
+      };
+      // 先按配额放重点，再用日常/简记把剩下的名额补满
+      for (const p of ordered) if (p.kind === '重点') tryPick(p);
+      for (const p of ordered) if (p.kind !== '重点') tryPick(p);
       // 挑完再按时间排回去，读起来才像一天的流水
       picked.sort((a, b) => a.p.time.localeCompare(b.p.time));
       const rows = picked.map((x) => x.s);
       // 前面已有段落（永久层 / 固定叫法）时补个小标题，否则当天的条目会被看成
       // 上一段的一部分，模型分不清哪条是"老规矩"、哪条是"今天发生的事"
-      if (rows.length) push(out.length ? '【最近几天】\n' + rows.join('\n') : rows.join('\n'));
-      if (used >= cap) break;
+      if (rows.length) pushRecent(out.length ? '【最近几天】\n' + rows.join('\n') : rows.join('\n'));
+      if (used >= recentCap) break;
     }
 
-    // 4) 更早：周摘要
+    // 4) 更早：周摘要 → 月摘要（两个合吃留给"更早"的那份保底预算）
+    // 顺序上先是周（近两个月）再是月（更远），读起来由近到远；
+    // 但预算分配上先给月留出它那份 —— 它管的是最长的时间跨度，
+    // 如果按顺序"周先把 220 花完"，月摘要永远轮不到，等于这层白建。
     const weekly = readWeekly();
-    if (weekly.length && used < cap) {
-      const rows = [];
-      let n = 0;
+    const monthly = readMonthly();
+    if (weekly.length || monthly.length) {
+      const left = Math.max(0, cap - used);
+      const monthCap = Math.min(200, Math.round(left * 0.55));
+      const weekCap = Math.min(220, Math.max(0, left - monthCap));
+      const wRows = [];
+      let wn = 0;
       for (const w of weekly) {
         const s = '· 早前 ' + w;
-        if (n + s.length > 220) break;
-        rows.push(s);
-        n += s.length;
+        if (wn + s.length > weekCap) break;
+        wRows.push(s);
+        wn += s.length;
       }
-      if (rows.length) push(rows.join('\n'));
-    }
-
-    // 4.5) 更早：月摘要（比周摘要更粗，撑住"去年这个时候"这种跨度）
-    const monthly = readMonthly();
-    if (monthly.length && used < cap) {
-      const rows = [];
-      let n = 0;
+      const mRows = [];
+      let mn = 0;
       for (const m of monthly) {
         const s = '· ' + m;
-        if (n + s.length > 200) break;
-        rows.push(s);
-        n += s.length;
+        if (mn + s.length > monthCap) break;
+        mRows.push(s);
+        mn += s.length;
       }
-      if (rows.length) push(rows.join('\n'));
+      if (wRows.length) push(wRows.join('\n'));
+      // 上面周摘要最多吃掉 weekCap，剩下的仍然 ≥ monthCap，所以月摘要一定进得来
+      if (mRows.length) push(mRows.join('\n'));
     }
 
     // 5) 相关旧事（放在最后：这段每句话都可能变，别影响前面的缓存命中）

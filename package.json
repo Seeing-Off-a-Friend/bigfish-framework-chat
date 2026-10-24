@@ -1,6 +1,6 @@
 {
   "name": "bigfish-framework-chat",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "一个便宜、记得住、会主动开口的陪伴式对话引擎（分层记忆 + 遗忘曲线检索 + 主动开口调度）",
   "main": "src/index.js",
   "type": "commonjs",

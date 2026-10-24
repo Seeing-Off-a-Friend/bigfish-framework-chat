@@ -35,9 +35,9 @@
   "memory": true,
   "memoryIdleMinutes": 10,  // 静默多久后把对话整理成日记
   "memoryInjectDays": 3,    // 注入最近几天
-  "memoryMaxChars": 1000,   // 记忆注入的字数上限（约 500~600 token）
-  "memoryRetentionDays": 60, // 检索窗口：只在最近这么多天的日记里翻旧事（想记得更久就调大）
-  "memoryWeeklyKeep": 4,     // 周摘要保留几份（每份约两周）
+  "memoryMaxChars": 1400,   // 记忆注入的字数上限（约 700~800 token；其中 25% 留给周/月摘要）
+  "memoryRetentionDays": 365, // 检索窗口：只在最近这么多天的日记里翻旧事（按日期算，不看文件个数）
+  "memoryWeeklyKeep": 26,    // 周摘要保留几份（每份约两周，26 ≈ 一年）
   "memoryMonthlyKeep": 12,   // 月摘要保留几份（每份一个月，用来撑一年以上的跨度）
 
   // ---- 主动开口 ----
