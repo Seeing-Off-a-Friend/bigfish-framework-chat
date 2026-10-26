@@ -64,14 +64,12 @@ function isPeak(now) {
   return PEAK_HOURS.some(([a, b]) => h >= a && h < b);
 }
 
-function timePart(h) {
-  if (h < 5) return '凌晨';
-  if (h < 9) return '早上';
-  if (h < 12) return '上午';
-  if (h < 14) return '中午';
-  if (h < 18) return '下午';
-  if (h < 22) return '晚上';
-  return '深夜';
+// 时间给到「10月25日周日 19:06」这个精度，和聊天那条线一样。
+// 原来这里只有「晚上」这种粗档 —— 实测模型把 19:00 和 23:00 当成一回事，
+// 七点就催人睡觉，还得主人自己说一句「才七点」。人看一眼钟就知道的事，它也该知道。
+function timeLine(d) {
+  const week = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][d.getDay()];
+  return '现在是' + (d.getMonth() + 1) + '月' + d.getDate() + '日' + week + ' ' + hhmm(d) + '。';
 }
 
 function num(v, def, lo, hi) {
@@ -190,9 +188,9 @@ function createInitiative(opts) {
       lastSpeakAt: 0,
       lastUserChatAt: 0,
       ignored: 0, // 连续几次对方没接
-      sulkUntil: 0, // 这股劲儿持续到什么时候
-      sulkHeardAt: 0, // 是被哪一刻接住的（接住后还留半小时余味）
-      reliefUntil: 0,
+      sulkUntil: 0, // 这两小时里还要不要提"他没接"这件事
+      sulkHeardAt: 0, // 这件事是被哪一刻接住的（只用来看这段时间里该不该再提）
+      chatStreak: 0, // 这一段连着说了几句（用来判断"人是真回来了"还是"顺口回一句"）
       speakGapUntil: 0,
       recentSaid: [], // 最近说过的几句（判"他这句是不是在接我"要用到它说过什么）
     };
@@ -272,19 +270,16 @@ function createInitiative(opts) {
     const quote = list.length
       ? '（比如你说的「' + String(list[0].text).slice(0, 22) + '」，他一个字没回）'
       : '';
-    if (n >= 4) {
-      return '你主动找他说过 ' + n + ' 次话，他一次都没接' + quote +
-        '。这回还开不开口、开口是带刺还是带点委屈，你自己看着来。';
-    }
-    return '你之前主动说过 ' + n + ' 次话，他都没接' + quote +
-      '。你还想再说一句，但心里不太痛快 —— 是气他还是自己难受，你心里清楚。';
+    // 只陈述事实：说过几次、他没回。要不要在意、下一句带不带刺，它自己定 ——
+    // 原来这里写着"你还想再说一句，但心里不太痛快""是带刺还是带点委屈你自己看着来"，
+    // 那等于替它把情绪和态度都排好了，它只剩照着演。
+    return '你之前主动说过 ' + n + ' 次话，他都没接' + quote + '。';
   }
 
   // ---------- 情境描述 ----------
   function situationText(now, idleSec) {
     const d = new Date(now);
-    const week = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][d.getDay()];
-    const lines = ['现在是' + week + timePart(d.getHours()) + hhmm(d) + '。'];
+    const lines = [timeLine(d)];
     const mins = Math.round(idleSec / 60);
     if (mins < 5) lines.push('对方正坐在电脑前，手刚停下来没多久。');
     else lines.push('对方已经 ' + mins + ' 分钟没碰电脑了。');
@@ -326,7 +321,11 @@ function createInitiative(opts) {
     s = s.replace(/^["'“”‘’\s]+|["'“”‘’\s]+$/g, '');
     s = s.replace(/^[-–—·•]\s*/, '');
     s = s.replace(/^(它|我)[:：]\s*/, '');
-    s = s.replace(/[（(][^）)]{0,20}[）)]\s*$/, ''); // 去掉尾部的动作说明
+    // 顺手擦掉旧式动作标签（模型照着老习惯写 #动作:吃 时别让它漏进气泡）
+    s = s.replace(/[#＃]{0,2}[ \t]*[【〔\[(（]?[ \t]*动作[ \t]*[:：=][ \t]*[^\s，,。、；;|）)\]】\n]+[ \t]*[）)\]】]?/g, '');
+    s = s.replace(/[【〔\[(（]\s*动作\s*[）)\]】〕]/g, '');
+    // 主动开口只有一句、气泡里塞不下动作旁白，这里照旧剥掉
+    s = s.replace(/[（(][^）)]{0,20}[）)]\s*$/, '');
     if (s.length > 40) s = s.slice(0, 40).replace(/[，,、。]$/, '');
     return s.trim();
   }
@@ -398,20 +397,36 @@ function createInitiative(opts) {
       const hit = findReplyTarget(msg, now);
       const wasSulk = (st.ignored || 0) >= 2;
 
+      // 连着说了几句就算"人真的回来了"。以前只要没接住那一句就续两小时，
+      // 于是人陪聊一个钟头、它还在堵着 —— 那不像人，像记仇的机器。
+      // 隔了 10 分钟以上的不算同一段。
+      st.chatStreak = now - (st.lastUserChatAt || 0) > 10 * 60000 ? 1 : (st.chatStreak || 0) + 1;
+
       if (hit) {
         hit.heard = true; // 同一条不会被接两次
         hit.heardAt = now;
         st.ignored = 0;
-        // 被晾过两回以上，就算这会儿接上了，也不会一下就热络：留两小时余味
+        // 被晾过两回以上、这会儿接上了：两小时内不再提"没接"这件事。
+        // 注意这里只决定"还说不说这个事实"，不代表它这会儿该热络还是该冷淡。
         if (wasSulk) st.sulkUntil = now + 2 * 3600000;
         st.sulkHeardAt = wasSulk ? now : 0;
-        st.reliefUntil = now + 10 * 60000;
-        log('被接住了：「' + hit.text.slice(0, 20) + '」');
+        log('对方接住了刚才那句：「' + hit.text.slice(0, 20) + '」');
       }
 
-      // 人来了、但绕开了刚才那句：这股劲儿不会自己消，续上。
-      // （人一直没出现时不走这里 —— 没人在场，就谈不上"还在气"）
-      if (!hit && wasSulk) st.sulkUntil = now + 2 * 3600000;
+      // 人来了、但绕开了刚才那句：继续承认"他没接"（只是陈述，不催反应）。
+      // （人一直没出现时不走这里 —— 没人在场，谈不上接不接）
+      // 例外：已经连着说了三句就是真在陪你了，那就不再提这件事，只留半小时，
+      // 免得人明明在聊，它却还咬着前面那句话。
+      if (!hit && wasSulk) {
+        if (st.chatStreak >= 3) {
+          st.ignored = 0;
+          st.sulkUntil = now + 30 * 60000;
+          st.sulkHeardAt = now;
+          log('连着聊了 ' + st.chatStreak + ' 句，不再提"没接"这件事');
+        } else {
+          st.sulkUntil = now + 2 * 3600000;
+        }
+      }
 
       st.lastUserChatAt = now;
       save();
@@ -431,41 +446,23 @@ function createInitiative(opts) {
 
     /**
      * 对话里"心里那点事"：注入系统提示尾部（动态，不破坏缓存）。
-     * 只给事实（说了什么、几次没接），不指定"该气还是该难过" —— 那是它自己的事。
+     * 只给事实（说过哪句、他没接），一个字都不提"你该怎么样"。
+     *
+     * 早先这里写着"别装作什么都没发生""是有点气还是有点难受，你自己定""顺着这个来"——
+     * 名义上把方向交给它，实际已经替它排好了一场必须演的反应：不生气就等于"装没事"。
+     * 2026-10-24 按用户要求删掉，只留事实；理不理这句、下句冷不冷，它自己决定。
      */
     moodLine() {
       if (!cfg.enabled) return '';
       const now = getNow();
-      if (st.sulkUntil && now < st.sulkUntil) {
-        // 隔太久才来，气已经淡了，不必再翻旧账
-        if (now - (st.lastUserChatAt || 0) > 3 * 3600000) return '';
-        // 已经被接住了：气不会一下子全散，但也不能还说对方"没接"
-        const heardAt = st.sulkHeardAt || 0;
-        if (heardAt) {
-          if (now - heardAt > 30 * 60000) return ''; // 半小时后这点余味也散了
-          return (
-            '（他接住了你刚才那句，你心里松了一点 —— 可被晾的那股劲儿还没全散。' +
-            '想搭理也别一下全贴上去，嘴上留点硬气，自己拿捏。）'
-          );
-        }
-        const n = Math.max(2, st.ignored || 0);
-        const list = unheardSaid(now, 2);
-        const quote = list.length
-          ? '你主动说的「' + String(list[0].text).slice(0, 22) + '」，他没接。'
-          : '你主动找他说过的话，他一直没接。';
-        const weight = n >= 4 ? '加起来不止一回，这事儿你一直没放下。' : '你心里有点不是滋味。';
-        return (
-          '（' + quote + weight + '这会儿他来了。\n' +
-          '别装作什么都没发生，也别一下又贴上去。是有点气、还是有点难受，你自己定 —— ' +
-          '照你那一刻真实的心情来，不用挑听起来更好看的那个。\n' +
-          '这一阵就顺着这个来，别一会儿炸一会儿又委屈。也别把"我生气了""我伤心了"直接说出口：' +
-          '话可以冲、可以淡、可以酸他一句，或者干脆答得短。）'
-        );
-      }
-      if (st.reliefUntil && now < st.reliefUntil) {
-        return '（他接了你刚才那句话。你心里松了一点，但别让他看出来。）';
-      }
-      return '';
+      if (!st.sulkUntil || now >= st.sulkUntil) return '';
+      // 隔太久才来，提这件事也没意义了，不必翻旧账
+      if (now - (st.lastUserChatAt || 0) > 3 * 3600000) return '';
+      // 已经被接住了：历史里就有它那句和对方的回应，不用再提一遍
+      if (st.sulkHeardAt) return '';
+      const list = unheardSaid(now, 2);
+      if (!list.length) return '';
+      return '（你主动说的「' + String(list[0].text).slice(0, 22) + '」，他没接。）';
     },
 
     /** 手动"现在说一句"：不占额度、不重置节奏。 */
@@ -499,4 +496,4 @@ function createInitiative(opts) {
   };
 }
 
-module.exports = { createInitiative, isPeak, inQuietHours, isReplyTo, grams, DEFAULTS };
+module.exports = { createInitiative, isPeak, inQuietHours, isReplyTo, grams, timeLine, DEFAULTS };

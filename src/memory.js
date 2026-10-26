@@ -834,13 +834,20 @@ function createMemory(opts) {
     return { ok: true, count: totalLines, batches: chunks.length };
   }
 
-  // 整理失败：记一行到 .errors.log（宿主没有控制台时也要留个地方查），
-  // 5 分钟后自己再试一次。连续失败 4 次就停手，等下次聊天或下次启动再补
+  // 整理失败：记一行到 errors/errors.log（宿主没有控制台时也要留个地方查），
+  // 5 分钟后自己再试一次。连续失败 4 次就停手，等下次聊天或下次启动再补。
+  // 放在子目录里，免得数据目录根下越堆越杂。
   function noteFlushFail(msg) {
     flushFails += 1;
     try {
       const t = new Date().toISOString().replace('T', ' ').slice(0, 19);
-      fs.appendFileSync(path.join(dir, '.errors.log'), t + '  整理失败（第 ' + flushFails + ' 次）：' + msg + '\n', 'utf8');
+      const errDir = path.join(dir, 'errors');
+      fs.mkdirSync(errDir, { recursive: true });
+      fs.appendFileSync(
+        path.join(errDir, 'errors.log'),
+        t + '  整理失败（第 ' + flushFails + ' 次）：' + msg + '\n',
+        'utf8'
+      );
     } catch (e) {
       /* 连错误日志都写不进去，就算了 */
     }

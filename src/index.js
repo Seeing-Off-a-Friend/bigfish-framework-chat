@@ -27,6 +27,38 @@ const saidStore = require('./said-store.js');
 const MAX_SEGMENTS = 3;
 
 /**
+ * 擦掉旧式动作标签（`#动作:吃` / `【动作】` 这类空壳标记）。
+ *
+ * 2026-10-25 起动作改成写进正文的括号旁白，不再有标签。但模型偶尔还会照着
+ * 老习惯写一个 —— 那串东西漏进回复就是一句莫名其妙的话，所以照着擦掉。
+ * **圆括号里的动作旁白不擦**，那是要显示给人看的。
+ */
+function stripActionTags(text) {
+  return String(text == null ? '' : text)
+    .replace(/[【〔\[(（]\s*动作\s*[）)\]】〕]/g, '')
+    .replace(
+      /[#＃]{0,2}[ \t]*[【〔\[(（]?[ \t]*动作[ \t]*[:：=][ \t]*[^\s，,。、；;|）)\]】\n]+[ \t]*[）)\]】]?/g,
+      ''
+    )
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
+}
+
+/**
+ * 剥掉括号动作，只留正文 —— 给记忆用。
+ *
+ * 记忆里存「（尾巴垂下来）」没有意义，还会占掉那 1400 字预算；
+ * 但对话历史里要留着，不然它下一次看不到自己刚才做过什么。
+ */
+function stripParens(text) {
+  return String(text == null ? '' : text)
+    .replace(/[（(][^（()）\n]{0,20}[)）]/g, '')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/[ \t]+([，。！？、；])/g, '$1')
+    .trim();
+}
+
+/**
  * 把一段回复拆成 1~3 条消息。
  *
  * 为什么拆：一条长回复和三条短消息，观感差很远 —— 后者像人在打字。
@@ -61,6 +93,9 @@ const SAID_LABEL = { speak: '主动开口', note: '留言', thought: '随笔' };
 function createChat(options) {
   const opts = options || {};
   const log = opts.log || (() => {});
+  // 时间统一从这里取：对话的时间提示、主动开口的"现在几点"必须是同一个钟，
+  // 两边各读一次 Date.now() 极少数情况下会差一秒，跨午夜时就成了两个日期。
+  const getNow = typeof opts.now === 'function' ? () => Number(opts.now()) : () => Date.now();
   const cfg = opts.config ? normalize(opts.config) : loadConfig(opts.configFile);
 
   cfg.apiKey = String(opts.apiKey || cfg.apiKey || process.env.DEEPSEEK_API_KEY || '').trim();
@@ -147,6 +182,7 @@ function createChat(options) {
       complete: (messages, over) => llm.complete(messages, over),
       isHere: opts.isHere,
       idleSec: opts.idleSec,
+      getNow,
       onSay: (text) => {
         if (typeof opts.onSpeak === 'function') {
           try {
@@ -187,7 +223,7 @@ function createChat(options) {
 
   /** 系统提示（也用于预热缓存）。 */
   function systemPrompt(userText) {
-    return buildSystemPrompt({ cfg, memory, initiative, digest, userText });
+    return buildSystemPrompt({ cfg, memory, initiative, digest, userText, now: getNow() });
   }
 
   /**
@@ -218,14 +254,15 @@ function createChat(options) {
       return r;
     }
 
-    const clean = r.reply || '……';
-    // 历史里保留换行（它能看到自己上次发了几条），记忆里压成一行（整理按行解析）
+    const clean = stripActionTags(r.reply || '……') || '……';
+    // 历史里保留换行和括号动作（它能看到自己上次发了几条、做过什么），
+    // 记忆里压成一行并剥掉括号（整理按行解析，动作说明对日记没用）
     history.push({ role: 'user', content: msg }, { role: 'assistant', content: clean });
     trimHistory(cfg.historyTurns);
 
     const segments = splitSegments(clean);
     const out = segments.length ? segments : [clean];
-    if (memory && cfg.memory) memory.record(msg, out.join(' '));
+    if (memory && cfg.memory) memory.record(msg, stripParens(out.join(' ')));
 
     return { ok: true, reply: clean, segments: out, reasoningTokens: r.reasoningTokens, usage: r.usage };
   }
@@ -300,6 +337,8 @@ module.exports = {
   buildSystemPrompt,
   defaultPersona,
   isReplyTo,
+  stripActionTags,
+  stripParens,
   DEFAULTS,
   // 单独暴露，方便直接组装
   modules: {

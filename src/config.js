@@ -36,6 +36,11 @@ const DEFAULTS = {
   // 让回答更接近一个随口说话的人，而不是一个在权衡措辞的助手。
   thinking: 'low',
 
+  // ---- 动作 ----
+  // 说话时偶尔带一句括号旁白（「（尾巴动了一下）」），原样显示在回复里。
+  // false = 提示词里就不提动作这件事（省几个 token，也不会有括号）。
+  action: true,
+
   // ---- 记忆 ----
   memory: true,
   // 聊完静默多久后整理成日记（分钟）
@@ -151,6 +156,7 @@ function normalize(raw) {
   // 开关类：只有显式 false 才关（缺省是开）
   cfg.memory = cfg.memory !== false;
   cfg.initiative = cfg.initiative !== false;
+  cfg.action = cfg.action !== false;
 
   cfg.memoryIdleMinutes = num(cfg.memoryIdleMinutes, DEFAULTS.memoryIdleMinutes, 0.5, 1440);
   cfg.memoryInjectDays = num(cfg.memoryInjectDays, DEFAULTS.memoryInjectDays, 1, 30);

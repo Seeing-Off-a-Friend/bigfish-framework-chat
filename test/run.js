@@ -12,12 +12,13 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const { splitSegments } = require('../src/index.js');
+const { splitSegments, stripActionTags, stripParens } = require('../src/index.js');
+const { buildSystemPrompt, ACT_GUIDE } = require('../src/prompt.js');
 const config = require('../src/config.js');
 const persona = require('../src/persona.js');
 const { createMemory, ymd } = require('../src/memory.js');
 const recall = require('../src/recall.js');
-const { createInitiative, isReplyTo, inQuietHours } = require('../src/initiative.js');
+const { createInitiative, isReplyTo, inQuietHours, timeLine } = require('../src/initiative.js');
 const { createUsage } = require('../src/usage.js');
 
 let passed = 0;
@@ -323,11 +324,16 @@ async function testInitiative() {
   const mark = it.onUserChat('我今天考试没过');
   ok(mark.heard === 0, '聊别的不算接住');
   ok(mark.sulk === true, '被晾两次后开始堵着');
-  ok(it.moodLine().includes('你自己定'), '情绪方向不写死，交给模型自己定');
+  const mood = it.moodLine();
+  ok(mood.includes('他没接'), '被晾时只陈述事实：它说的那句他没接');
+  ok(
+    !/你自己定|别装作什么都没发生|该气还是|心里有点不是滋味|留点硬气/.test(mood),
+    '不替它排反应：不提"该气还是该难过"、不要求"别装没事"'
+  );
 
   const heard = it.onUserChat('你刚才说的那句什么意思');
   ok(heard.heard > 0, '明着回应才算接住');
-  ok(it.state().sulk === true, '接住了也不会一下全消（留余味）');
+  ok(it.state().sulk === true, '接住了也不再提这件事（但旧账不会瞬间抹掉）');
 
   // 静默时段：0~6 点完全不主动，6 点之后恢复
   t = Date.parse('2026-10-22T03:30:00');
@@ -357,7 +363,7 @@ async function testInitiative() {
 }
 
 // ---------------------------------------------------------------------------
-console.log('\n[9] 记账：一天一个文件，坏行跳过');
+console.log('\n[9] 记账：一天一个文件、收进 usage/ 子目录、坏行跳过');
 {
   const dir = tmp('bfchat-usage-');
   const u = createUsage({ dir, log: () => {} });
@@ -366,9 +372,52 @@ console.log('\n[9] 记账：一天一个文件，坏行跳过');
   const t = u.today();
   ok(t.total === 1600, 'total = 输入 + 输出');
   ok(t.byKind['对话'].total === 1060 && t.byKind['整理'].total === 540, '按类型分开记');
-  const file = path.join(dir, 'usage-' + dayStr(new Date()) + '.jsonl');
+  ok(
+    fs.existsSync(path.join(dir, 'usage', 'usage-' + dayStr(new Date()) + '.jsonl')),
+    '账本落在 usage/ 子目录里（数据目录根下不再一天多一个文件）'
+  );
+  const file = path.join(dir, 'usage', 'usage-' + dayStr(new Date()) + '.jsonl');
   fs.appendFileSync(file, '这不是 json\n', 'utf8');
   ok(u.today().total === 1600, '坏行被跳过，不影响合计');
+
+  // 老版本的账本直接放在根目录：升级后要自动搬进 usage/，不然历史账读不到
+  const dir2 = tmp('bfchat-usage-legacy-');
+  const legacy = path.join(dir2, 'usage-' + dayStr(new Date()) + '.jsonl');
+  fs.writeFileSync(legacy, '{"t":"2026-10-20T10:00:00+08:00","kind":"对话","prompt":100,"cached":0,"completion":20}\n', 'utf8');
+  const u2 = createUsage({ dir: dir2, log: () => {} });
+  ok(!fs.existsSync(legacy), '根目录的旧账被搬走');
+  ok(u2.today().total === 120, '旧账搬进 usage/ 后照样算得进当日合计');
+}
+
+// ---------------------------------------------------------------------------
+console.log('\n[9b] 动作与时间：括号旁白、旧标签擦除、时刻给到分钟');
+{
+  const base = { persona: 'P', thinking: 'off', action: true };
+  const on = buildSystemPrompt({ cfg: base });
+  ok(on.includes(ACT_GUIDE), '动作说明进了系统提示（固定前缀，走缓存价）');
+  ok(on.includes('（尾巴动了一下）'), '给了括号写法的例子');
+  const off = buildSystemPrompt({ cfg: Object.assign({}, base, { action: false }) });
+  ok(!off.includes('【动作】'), 'action=false 时提示词里一个字都不提动作');
+  ok(on.indexOf('【动作】') > on.indexOf('P'), '动作段落在人设之后（固定内容都排在前面）');
+
+  ok(stripActionTags('累就瘫着呗。#动作:吃') === '累就瘫着呗。', '旧式 #动作 标签被擦掉');
+  ok(stripActionTags('【动作】') === '', '空壳【动作】标记不留残渣');
+  ok(
+    stripActionTags('哼（尾巴动了一下）') === '哼（尾巴动了一下）',
+    '括号旁白保留 —— 那是要显示给人看的'
+  );
+
+  ok(stripParens('累就瘫着呗。（尾巴垂下来）') === '累就瘫着呗。', '入库前剥掉括号动作');
+  ok(stripParens('嗯（别过头）然后就睡了') === '嗯然后就睡了', '句子中间的括号动作也剥');
+  ok(stripParens('（尾巴动了一下）') === '', '只有动作、没有正文时剥成空串');
+
+  // 时间：给到「10月25日周日 19:06」，不再只说"晚上"
+  const tl = timeLine(new Date(2026, 9, 25, 19, 6));
+  ok(tl.includes('10月25日') && tl.includes('周日') && tl.includes('19:06'), '时间给到日期 + 星期 + 时刻');
+  ok(!/凌晨|早上|上午|中午|下午|晚上|深夜/.test(tl), '不再用"晚上"这种粗档 —— 19 点和 23 点得分得开');
+
+  const withTime = buildSystemPrompt({ cfg: base, now: Date.parse('2026-10-25T19:06:00') });
+  ok(withTime.trim().endsWith('19:06。'), '时间拼在系统提示最末尾（只影响尾部几十 token）');
 }
 
 // ---------------------------------------------------------------------------
