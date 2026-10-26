@@ -380,13 +380,26 @@ console.log('\n[9] 记账：一天一个文件、收进 usage/ 子目录、坏�
   fs.appendFileSync(file, '这不是 json\n', 'utf8');
   ok(u.today().total === 1600, '坏行被跳过，不影响合计');
 
-  // 老版本的账本直接放在根目录：升级后要自动搬进 usage/，不然历史账读不到
+  // 老版本的账本直接放在根目录：升级后要自动搬进 usage/，而且两份要合并 ——
+  // 切换那天根目录和子目录会各写一半，只保留一边就是真丢账
   const dir2 = tmp('bfchat-usage-legacy-');
-  const legacy = path.join(dir2, 'usage-' + dayStr(new Date()) + '.jsonl');
+  const today = dayStr(new Date());
+  const legacy = path.join(dir2, 'usage-' + today + '.jsonl');
   fs.writeFileSync(legacy, '{"t":"2026-10-20T10:00:00+08:00","kind":"对话","prompt":100,"cached":0,"completion":20}\n', 'utf8');
+  fs.mkdirSync(path.join(dir2, 'usage'), { recursive: true });
+  fs.writeFileSync(
+    path.join(dir2, 'usage', 'usage-' + today + '.jsonl'),
+    '{"t":"2026-10-20T08:00:00+08:00","kind":"预热","prompt":50,"cached":0,"completion":10}\n',
+    'utf8'
+  );
   const u2 = createUsage({ dir: dir2, log: () => {} });
   ok(!fs.existsSync(legacy), '根目录的旧账被搬走');
-  ok(u2.today().total === 120, '旧账搬进 usage/ 后照样算得进当日合计');
+  ok(u2.today().total === 180, '旧账与已有的合在一起，一笔都不丢（120 + 60）');
+  const mergedRows = fs
+    .readFileSync(path.join(dir2, 'usage', 'usage-' + today + '.jsonl'), 'utf8')
+    .split('\n')
+    .filter(Boolean);
+  ok(mergedRows.length === 2 && mergedRows[0].includes('08:00'), '合并后按时间排好，预热的在最前');
 }
 
 // ---------------------------------------------------------------------------

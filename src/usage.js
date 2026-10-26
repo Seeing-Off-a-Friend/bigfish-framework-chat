@@ -61,6 +61,10 @@ function createUsage(opts) {
 
   // 老版本的账本直接放在 <dir>/ 下。升级后收进 usage/ —— 这里把旧账搬过去，
   // 不然历史账就从"今天花了多少"里凭空消失了（文件还在，但读的人找错了地方）。
+  //
+  // 注意不能"目标存在就删旧文件"：切换那天两份文件会各写一半
+  // （根目录是晚上 19:20 之后，子目录是当天 08:32 起），删了就真丢账。
+  // 所以按行去重后合并，再按时间排一遍，最后才删旧文件。
   function migrate() {
     try {
       const legacy = fs.readdirSync(dir).filter((f) => /^usage-\d{4}-\d{2}-\d{2}\.jsonl$/.test(f));
@@ -70,8 +74,19 @@ function createUsage(opts) {
         const from = path.join(dir, f);
         const to = path.join(dirOf(), f);
         try {
-          if (fs.existsSync(to)) fs.unlinkSync(from); // 已经搬过一份，别覆盖
-          else fs.renameSync(from, to);
+          const read = (p) =>
+            fs
+              .existsSync(p)
+              ? fs
+                  .readFileSync(p, 'utf8')
+                  .split('\n')
+                  .map((x) => x.trim())
+                  .filter(Boolean)
+              : [];
+          const merged = Array.from(new Set(read(to).concat(read(from))));
+          merged.sort((a, b) => String(a).localeCompare(String(b)));
+          fs.writeFileSync(to, merged.join('\n') + '\n', 'utf8');
+          fs.unlinkSync(from);
         } catch (e) {
           /* 单个文件搬不动就留着，不影响记账 */
         }
